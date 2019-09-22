@@ -164,8 +164,19 @@ object TerritoryInfo {
     ).show()
 
     //渠道报表
-
-
+    logMark.groupBy("adplatformproviderid").agg(
+      sum("srcReq") as "srcReqNum",
+      sum("validReq") as "validReqNum",
+      sum("adReq") as "adReqNum",
+      sum("bidding") as "biddingNum",
+      sum("win") as "winNum",
+      sum("win")/sum("bidding")*1.0 as "winRate",
+      sum("showReq") as "showReqNum",
+      sum("clickReq") as "clickReqNum",
+      sum("clickReq")/sum("showReq") as "clickRate",
+      sum("DSPAdCons")/1000 as "DSPAdConsume",
+      sum("DSPAdCo")/1000 as "DSPAdCost"
+    ).show()
 
     sparkSession.stop()
 
