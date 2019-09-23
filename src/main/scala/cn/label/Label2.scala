@@ -84,7 +84,7 @@ object Label2 {
 
     vertices.join(verties).map {
       case (uId, (cnId, tages)) => {
-        (uId,tages)
+        (cnId,tages)
       }
     }.map{
       case (userId,userTags) => {
