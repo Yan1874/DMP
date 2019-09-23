@@ -1,27 +1,32 @@
 package cn.util
 
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.sql.Row
 
 import scala.collection.mutable
 
 object LabelUtil {
-  def businessLb(long: String, lat: String, map: mutable.HashMap[String, Int]) = {
+  def businessLb(row:Row, map: mutable.HashMap[String, Int]) = {
+    val long = row.getAs[String]("long")
+    val lat = row.getAs[String]("lat")
     if(String2Type.toDouble(long)>=73
       && String2Type.toDouble(long)<=136
       && String2Type.toDouble(lat)>=3
-      && String2Type.toDouble(long)<=53){
+      && String2Type.toDouble(lat)<=53){
       val business: String = AmapUtil.getBusiness(long,lat)
       if(business!=null) {
         val arr: Array[String] = business.split(",")
         for(key <-arr) {
-          map.put(key,1)
+          map.put("BA"+key,1)
         }
       }
     }
 
   }
 
-  def pricityLb(provincename: String, cityname: String, map: mutable.HashMap[String, Int]) = {
+  def pricityLb(row:Row, map: mutable.HashMap[String, Int]) = {
+    val provincename = row.getAs[String]("provincename")
+    val cityname = row.getAs[String]("cityname")
     if(provincename!=null) {
       val key = "ZP"+provincename
       map.put(key,1)
@@ -32,11 +37,12 @@ object LabelUtil {
     }
   }
 
-  def keywordsLb(keywords: String, map: mutable.HashMap[String, Int]) = {
+  def keywordsLb(row:Row,broadcastVar: Broadcast[Map[String, Int]], map: mutable.HashMap[String, Int]) = {
+    val keywords = row.getAs[String]("keywords")
     if(keywords!=null) {
       val words: Array[String] = keywords.split("\\|",-1)
       for(word <- words) {
-        if(word.length>=3 && word.length<=8) {
+        if(word.length>=3 && word.length<=8 && !broadcastVar.value.contains(word)) {
           val key = "K"+word
           map.put(key,1)
         }
@@ -44,7 +50,8 @@ object LabelUtil {
     }
   }
 
-  def ispnameLb(ispname: String, map: mutable.HashMap[String, Int]) = {
+  def ispnameLb(row:Row, map: mutable.HashMap[String, Int]) = {
+    val ispname = row.getAs[String]("ispname")
     if(ispname!=null) {
       val key = ispname match {
         case "移动" => "D00030001"
@@ -56,7 +63,8 @@ object LabelUtil {
     }
   }
 
-  def networkmannernameLb(networkmannername: String, map: mutable.HashMap[String, Int])= {
+  def networkmannernameLb(row:Row, map: mutable.HashMap[String, Int])= {
+    val networkmannername = row.getAs[String]("networkmannername")
     if(networkmannername!=null) {
       val key = networkmannername match {
         case "Wifi" => "D00020001"
@@ -70,7 +78,8 @@ object LabelUtil {
     }
   }
 
-  def clientLb(client: Int, map: mutable.HashMap[String, Int])= {
+  def clientLb(row:Row, map: mutable.HashMap[String, Int])= {
+    val client = row.getAs[Int]("client")
     if(client!=0) {
      val key = client match{
         case 1 => "D00010001"
@@ -82,7 +91,8 @@ object LabelUtil {
     }
   }
 
-  def adplatformprovideridLb(adplatformproviderid: Int, map: mutable.HashMap[String, Int])= {
+  def adplatformprovideridLb(row:Row, map: mutable.HashMap[String, Int])= {
+    val adplatformproviderid = row.getAs[Int]("adplatformproviderid")
     if(adplatformproviderid!=0) {
       val key = "CN"+adplatformproviderid
       map.put(key,1)
@@ -90,7 +100,8 @@ object LabelUtil {
   }
 
 
-  def adspacetypeLb(adspacetype:Int,map:mutable.HashMap[String,Int]) ={
+  def adspacetypeLb(row:Row,map:mutable.HashMap[String,Int]) ={
+    val adspacetype = row.getAs[Int]("adspacetype")
     if(adspacetype!=0) {
       var key = ""
       if (adspacetype < 10) {
@@ -102,16 +113,18 @@ object LabelUtil {
     }
   }
 
-  def adspacetypenameLb(adspacetypename:String,map:mutable.HashMap[String,Int]) = {
+  def adspacetypenameLb(row:Row,map:mutable.HashMap[String,Int]) = {
+    val adspacetypename = row.getAs[String]("adspacetypename")
     if(adspacetypename!=null) {
       val key =  "LN" + adspacetypename
       map.put(key,1)
     }
   }
 
-  def appnameLb(appid: String, appname: String, broadcastVar: Broadcast[Map[String, String]],
+  def appnameLb(row:Row, broadcastVar: Broadcast[Map[String, String]],
               map: mutable.HashMap[String, Int]) ={
-
+    val appid = row.getAs[String]("appid")
+    val appname = row.getAs[String]("appname")
     if(appname=="未知"||appname==null) {
       if(broadcastVar.value.contains(appid)) {
         val key = "APP" + broadcastVar.value.get(appid)

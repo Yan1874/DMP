@@ -1,18 +1,16 @@
 package cn.label
 
 import cn.util.{HbaseUtil, LabelUtil, UserIdUtil, mapUtil}
-import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.mapred.JobConf
-import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.graphx.{Edge, Graph, VertexId, VertexRDD}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 import scala.collection.mutable
 
-object Label {
+object Label2 {
   def main(args: Array[String]): Unit = {
     if(args.length != 1) {
       println("输入目录错误")
@@ -43,9 +41,14 @@ object Label {
     val stop = appRDD1.map((_,1)).collect()
     val stopWords = sparkSession.sparkContext.broadcast(stop.toMap)
 
+    val userRDD = df.rdd.map(row => {
+      val userList: List[String] = UserIdUtil.getAllUserId(row)
+      (userList,row)
+    })
 
-    val res1 = df.rdd.map(row => {
-      val userid = UserIdUtil.getUserId(row)
+    val verties = userRDD.flatMap(x => {
+      val row = x._2
+
       val map = new mutable.HashMap[String,Int]()
 
       LabelUtil.adspacetypeLb(row,map)
@@ -58,12 +61,32 @@ object Label {
       LabelUtil.keywordsLb(row,stopWords,map)
       LabelUtil.pricityLb(row,map)
       LabelUtil.businessLb(row,map)
-      (userid,map)
-  }).groupByKey().mapValues(x => {
-      x.reduce((x,y)=>{
-        mapUtil.mergeMap(x,y)
+
+      val VD: List[(String, Int)] = x._1.map((_,0))++map
+
+      x._1.map(uId => {
+        if(x._1.head.equals(uId)) {
+          (uId.hashCode.toLong,VD)
+        }else {
+          (uId.hashCode.toLong,List.empty)
+        }
       })
-  }).map{
+    })
+
+    val edges = userRDD.flatMap(x => {
+      x._1.map(uId => Edge(x._1.head.hashCode.toLong,uId.hashCode.toLong,0))
+    })
+
+    //构建图
+    val graph = Graph(verties,edges)
+    //连接所有点并找到最小点作为公共点
+    val vertices: VertexRDD[VertexId] = graph.connectedComponents().vertices
+
+    vertices.join(verties).map {
+      case (uId, (cnId, tages)) => {
+        (uId,tages)
+      }
+    }.map{
       case (userId,userTags) => {
         val put = new Put(Bytes.toBytes(userId))
         put.addImmutable(Bytes.toBytes("tags"),Bytes.toBytes("2019-09-22"),Bytes.toBytes(userTags.mkString(",")))
