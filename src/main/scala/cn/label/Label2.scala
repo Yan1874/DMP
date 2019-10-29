@@ -42,6 +42,7 @@ object Label2 {
     val stopWords = sparkSession.sparkContext.broadcast(stop.toMap)
 
     val userRDD = df.rdd.map(row => {
+      //获取所有标识用户的信息
       val userList: List[String] = UserIdUtil.getAllUserId(row)
       (userList,row)
     })
@@ -50,7 +51,7 @@ object Label2 {
       val row = x._2
 
       val map = new mutable.HashMap[String,Int]()
-
+      //打标签并将标签put到一个map中
       LabelUtil.adspacetypeLb(row,map)
       LabelUtil.adspacetypenameLb(row,map)
       LabelUtil.appnameLb(row,broadcastVar,map)
@@ -62,8 +63,10 @@ object Label2 {
       LabelUtil.pricityLb(row,map)
       LabelUtil.businessLb(row,map)
 
+      //将所有用户信息和标签放入一个List
       val VD: List[(String, Int)] = x._1.map((_,0))++map
 
+      //取用户的第一个信息和VD(包含全部用户信息和标签)组成元组
       x._1.map(uId => {
         if(x._1.head.equals(uId)) {
           (uId.hashCode.toLong,VD)
@@ -73,20 +76,23 @@ object Label2 {
       })
     })
 
+    //将用户第一个信息和其他每条的信息构建边的集合
     val edges = userRDD.flatMap(x => {
       x._1.map(uId => Edge(x._1.head.hashCode.toLong,uId.hashCode.toLong,0))
     })
-
     //构建图
     val graph = Graph(verties,edges)
     //连接所有点并找到最小点作为公共点
     val vertices: VertexRDD[VertexId] = graph.connectedComponents().vertices
 
+    //匹配数据
     vertices.join(verties).map {
+      //（用户标识，（顶点，标签））
       case (uId, (cnId, tages)) => {
         (cnId,tages)
       }
     }.map{
+
       case (userId,userTags) => {
         val put = new Put(Bytes.toBytes(userId))
         put.addImmutable(Bytes.toBytes("tags"),Bytes.toBytes("2019-09-22"),Bytes.toBytes(userTags.mkString(",")))
